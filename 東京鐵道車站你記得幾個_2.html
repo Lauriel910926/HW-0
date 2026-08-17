@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>東京鐵道車站你記得幾個？</title>
+<style>
+  :root{
+    --gold:#b8860b;
+    --gold-dark:#96690a;
+    --ink:#2b2b2b;
+    --muted:#8a8a8a;
+    --line:#e4e2dd;
+    --panel-bg:#ffffff;
+    --bg:#fafaf8;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+    background:var(--bg); color:var(--ink);
+    display:flex; flex-direction:column; height:100vh; overflow:hidden;
+  }
+  header{
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding:14px 22px 8px 22px; border-bottom:1px solid var(--line); flex-shrink:0;
+    background:var(--panel-bg);
+  }
+  header h1{font-size:22px; margin:0; font-weight:700;}
+  header .sub{font-size:12.5px; color:var(--muted); margin-top:4px;}
+  header .stats{font-size:16px; white-space:nowrap;}
+  header .stats b{font-size:22px; color:var(--gold-dark);}
+  main{flex:1; display:flex; min-height:0;}
+  #mapwrap{
+    flex:1; position:relative; overflow:hidden; background:
+      linear-gradient(90deg, rgba(0,0,0,.03) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(rgba(0,0,0,.03) 1px, transparent 1px) 0 0/28px 28px, #fdfdfc;
+    cursor:grab;
+  }
+  #mapwrap.dragging{cursor:grabbing;}
+  svg{width:100%; height:100%; display:block; user-select:none;}
+  .line-path{fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:9;}
+  .station-dot{stroke-width:3.2; cursor:pointer; transition:r .15s, fill .2s;}
+  .station-dot.unfound{fill:#ffffff; stroke:#a9a9a9;}
+  .station-dot.found{stroke:#3a3a3a;}
+  .station-dot.revealed-miss{fill:#fff; stroke:#d9534f; stroke-dasharray:2 2;}
+  .station-label{
+    font-size:15px; font-weight:600; fill:#2b2b2b; opacity:0; pointer-events:none;
+    paint-order:stroke; stroke:#fff; stroke-width:3.5; transition:opacity .25s;
+  }
+  .station-label.show{opacity:1;}
+  .station-label.miss{fill:#c0392b;}
+  .zoom-ctrl{
+    position:absolute; right:14px; bottom:14px; display:flex; flex-direction:column;
+    gap:6px; z-index:5;
+  }
+  .zoom-ctrl button{
+    width:34px; height:34px; border-radius:8px; border:1px solid var(--line);
+    background:#fff; font-size:17px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.08);
+    color:#555;
+  }
+  .zoom-ctrl button:hover{background:#f2f2f0;}
+  #sidebar{
+    width:380px; flex-shrink:0; border-left:1px solid var(--line); background:var(--panel-bg);
+    display:flex; flex-direction:column; padding:18px 18px 14px 18px; overflow-y:auto;
+  }
+  #inputRow{display:flex; gap:8px;}
+  #stationInput{
+    flex:1; padding:11px 12px; border:1px solid #cfcac0; border-radius:8px;
+    font-size:15px; outline:none;
+  }
+  #stationInput:focus{border-color:var(--gold);}
+  #confirmBtn{
+    padding:0 18px; border:1px solid var(--gold); background:#fff; color:var(--gold-dark);
+    border-radius:8px; font-size:15px; cursor:pointer; font-weight:600;
+  }
+  #confirmBtn:hover{background:#fbf2e0;}
+  .hint{font-size:12.5px; color:var(--muted); line-height:1.7; margin:12px 0 14px 0;}
+  .action-row{display:flex; gap:10px; margin-bottom:16px;}
+  .action-row button{
+    flex:1; padding:11px 0; border-radius:8px; font-size:14.5px; cursor:pointer; font-weight:600; border:1px solid var(--line);
+  }
+  #revealBtn{background:#fff; color:#555;}
+  #revealBtn:hover{background:#f2f2f0;}
+  #submitBtn{background:var(--gold); color:#fff; border-color:var(--gold);}
+  #submitBtn:hover{background:var(--gold-dark);}
+  #lineListHead{
+    display:flex; align-items:center; justify-content:space-between;
+    border-top:1px solid var(--line); padding-top:10px; margin-top:2px;
+    font-size:12.5px; color:var(--muted);
+  }
+  .line-bulk-btns{display:flex; gap:6px;}
+  .line-bulk-btns button{
+    font-size:12px; padding:3px 9px; border-radius:12px; border:1px solid var(--line);
+    background:#fff; color:#666; cursor:pointer;
+  }
+  .line-bulk-btns button:hover{background:#f2f2f0;}
+  #lineList{padding-top:4px;}
+  .line-row{
+    display:flex; align-items:center; gap:8px; padding:6px 2px; font-size:14px; cursor:pointer;
+    border-radius:6px;
+  }
+  .line-row:hover{background:#f5f4f1;}
+  .line-row.line-off{opacity:.4;}
+  .line-row .lvis{flex-shrink:0; width:15px; height:15px; cursor:pointer; accent-color:var(--gold);}
+  .line-row .swatch{width:14px; height:14px; border-radius:3px; flex-shrink:0;}
+  .line-row .lname{flex:1;}
+  .line-row .lcount{color:var(--muted); font-variant-numeric:tabular-nums;}
+  #foundHead{font-size:13px; color:var(--muted); margin-top:16px; padding-top:10px; border-top:1px solid var(--line);}
+  #foundList{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .chip{
+    font-size:12.5px; background:#f5f4f1; border:1px solid var(--line); border-radius:12px;
+    padding:3px 10px; color:#444;
+  }
+  #toast{
+    position:absolute; top:16px; left:50%; transform:translateX(-50%);
+    padding:8px 18px; border-radius:20px; font-size:14px; font-weight:600; color:#fff;
+    opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:10;
+  }
+  #toast.show{opacity:1;}
+  #toast.ok{background:#2e8b57;}
+  #toast.bad{background:#c0392b;}
+  #toast.dup{background:#888;}
+  footer{
+    padding:6px 22px; font-size:11.5px; color:var(--muted); border-top:1px solid var(--line);
+    flex-shrink:0; background:var(--panel-bg);
+  }
+  #summaryBox{display:none; margin-top:14px; padding:12px; border:1px solid var(--gold); border-radius:8px; background:#fffaf0; font-size:13.5px; line-height:1.7;}
+
+/* ---------------- Responsive (tablet / phone) ---------------- */
+@media (max-width: 860px){
+  html,body{height:auto; min-height:100%;}
+  body{overflow:visible; height:auto;}
+  header{padding:10px 14px 8px 14px; flex-wrap:wrap; gap:4px 12px;}
+  header h1{font-size:17px;}
+  header .sub{font-size:11px; line-height:1.5;}
+  header .stats{font-size:13px;}
+  header .stats b{font-size:17px;}
+  main{flex-direction:column; overflow:visible;}
+  #mapwrap{height:52vh; flex:none; width:100%;}
+  #sidebar{
+    width:100%; border-left:none; border-top:1px solid var(--line);
+    max-height:none; overflow-y:visible; padding:14px 14px 20px 14px;
+  }
+  #inputRow{gap:8px;}
+  #stationInput{font-size:16px; padding:13px 12px;} /* 16px avoids iOS auto-zoom */
+  #confirmBtn{font-size:15px; padding:0 16px;}
+  .action-row button{padding:13px 0; font-size:14.5px;}
+  .zoom-ctrl{right:10px; bottom:10px;}
+  .zoom-ctrl button{width:40px; height:40px; font-size:19px;}
+  .line-row{font-size:13.5px; padding:8px 2px;}
+  footer{font-size:10px; padding:6px 14px;}
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>東京鐵道車站你記得幾個？</h1>
+    <div class="sub">涵蓋JR東日本（山手線、中央線、總武線、京濱東北線、東海道線、常磐線、京葉線、埼京線）、東京Metro九條路線、都營地下鐵四條路線</div>
+  </div>
+  <div class="stats">解鎖 <b id="foundCount">0</b> / <span id="totalCount">0</span>　<span id="pct">0.0%</span></div>
+</header>
+<main>
+  <div id="mapwrap">
+    <div id="toast"></div>
+    <svg id="svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+      <g id="viewport">
+        <g id="lines-layer"></g>
+        <g id="stations-layer"></g>
+      </g>
+    </svg>
+    <div class="zoom-ctrl">
+      <button id="zoomIn" title="放大">＋</button>
+      <button id="zoomOut" title="縮小">－</button>
+      <button id="zoomReset" title="重置">⟲</button>
+    </div>
+  </div>
+  <div id="sidebar">
+    <div id="inputRow">
+      <input id="stationInput" type="text" placeholder="請輸入…" autocomplete="off">
+      <button id="confirmBtn">確定</button>
+    </div>
+    <div class="hint">
+      輸入中文、英文或日文漢字（例如：東京 / Tokyo / 東京）皆可。<br>
+      想不出來了就按「交卷」看成績單。
+    </div>
+    <div class="action-row">
+      <button id="revealBtn">公布解答</button>
+      <button id="submitBtn">交卷</button>
+    </div>
+    <div id="lineListHead">
+      <span>路線顯示</span>
+      <span class="line-bulk-btns">
+        <button id="showAllLines" type="button">全選</button>
+        <button id="hideAllLines" type="button">全不選</button>
+      </span>
+    </div>
+    <div id="lineList"></div>
+    <div id="summaryBox"></div>
+    <div id="foundHead">已找到的站</div>
+    <div id="foundList"></div>
+  </div>
+</main>
+<footer>純屬好玩，玩法參考「捷運車站你記得幾個？」。資料範圍為 JR 東日本主要路線＋東京Metro全九線＋都營地下鐵全四線之主要車站（不含全部支線及所有各站停靠站，車站位置為示意圖非精確地理位置）。</footer>
+
+<script>
+const DATA = {"width": 5345.7, "height": 5656.9, "stations": {"tokyo": {"zh": "東京", "en": "Tokyo", "ja": "東京", "x": 3894.7, "y": 1917.4}, "kanda": {"zh": "神田", "en": "Kanda", "ja": "神田", "x": 3877.5, "y": 1770.2}, "akihabara": {"zh": "秋葉原", "en": "Akihabara", "ja": "秋葉原", "x": 3838.0, "y": 1631.1}, "okachimachi": {"zh": "御徒町", "en": "Okachimachi", "ja": "御徒町", "x": 3778.0, "y": 1506.1}, "ueno": {"zh": "上野", "en": "Ueno", "ja": "上野", "x": 3700.1, "y": 1400.7}, "uguisudani": {"zh": "鶯谷", "en": "Uguisudani", "ja": "鶯谷", "x": 3607.7, "y": 1319.5}, "nippori": {"zh": "日暮里", "en": "Nippori", "ja": "日暮里", "x": 3504.8, "y": 1266.1}, "nishi-nippori": {"zh": "西日暮里", "en": "Nishi-Nippori", "ja": "西日暮里", "x": 3396.0, "y": 1242.7}, "tabata": {"zh": "田端", "en": "Tabata", "ja": "田端", "x": 3286.0, "y": 1250.5}, "komagome": {"zh": "駒込", "en": "Komagome", "ja": "駒込", "x": 3179.6, "y": 1289.1}, "sugamo": {"zh": "巢鴨", "en": "Sugamo", "ja": "巣鴨", "x": 3081.4, "y": 1356.8}, "otsuka": {"zh": "大塚", "en": "Otsuka", "ja": "大塚", "x": 2995.8, "y": 1450.6}, "ikebukuro": {"zh": "池袋", "en": "Ikebukuro", "ja": "池袋", "x": 2926.5, "y": 1566.4}, "mejiro": {"zh": "目白", "en": "Mejiro", "ja": "目白", "x": 2876.5, "y": 1699.2}, "takadanobaba": {"zh": "高田馬場", "en": "Takadanobaba", "ja": "高田馬場", "x": 2847.9, "y": 1843.2}, "shin-okubo": {"zh": "新大久保", "en": "Shin-Okubo", "ja": "新大久保", "x": 2842.2, "y": 1992.1}, "shinjuku": {"zh": "新宿", "en": "Shinjuku", "ja": "新宿", "x": 2859.4, "y": 2139.3}, "yoyogi": {"zh": "代代木", "en": "Yoyogi", "ja": "代々木", "x": 2898.9, "y": 2278.5}, "harajuku": {"zh": "原宿", "en": "Harajuku", "ja": "原宿", "x": 2958.9, "y": 2403.5}, "shibuya": {"zh": "澀谷", "en": "Shibuya", "ja": "渋谷", "x": 3036.8, "y": 2508.9}, "ebisu": {"zh": "惠比壽", "en": "Ebisu", "ja": "恵比寿", "x": 3129.2, "y": 2590.1}, "meguro": {"zh": "目黑", "en": "Meguro", "ja": "目黒", "x": 3232.1, "y": 2643.5}, "gotanda": {"zh": "五反田", "en": "Gotanda", "ja": "五反田", "x": 3340.9, "y": 2666.8}, "osaki": {"zh": "大崎", "en": "Osaki", "ja": "大崎", "x": 3450.9, "y": 2659.0}, "shinagawa": {"zh": "品川", "en": "Shinagawa", "ja": "品川", "x": 3557.3, "y": 2620.4}, "takanawa-gw": {"zh": "高輪Gateway", "en": "Takanawa Gateway", "ja": "高輪ゲートウェイ", "x": 3655.5, "y": 2552.7}, "tamachi": {"zh": "田町", "en": "Tamachi", "ja": "田町", "x": 3741.1, "y": 2458.9}, "hamamatsucho": {"zh": "濱松町", "en": "Hamamatsucho", "ja": "浜松町", "x": 3810.4, "y": 2343.1}, "shimbashi": {"zh": "新橋", "en": "Shimbashi", "ja": "新橋", "x": 3860.4, "y": 2210.3}, "yurakucho": {"zh": "有樂町", "en": "Yurakucho", "ja": "有楽町", "x": 3889.0, "y": 2066.3}, "ochanomizu": {"zh": "御茶之水", "en": "Ochanomizu", "ja": "御茶ノ水", "x": 3784.5, "y": 1708.2}, "yotsuya": {"zh": "四谷", "en": "Yotsuya", "ja": "四ツ谷", "x": 3076.4, "y": 2232.3}, "nakano": {"zh": "中野", "en": "Nakano", "ja": "中野", "x": 2712.1, "y": 2141.2}, "koenji": {"zh": "高圓寺", "en": "Koenji", "ja": "高円寺", "x": 2564.7, "y": 2143.2}, "asagaya": {"zh": "阿佐谷", "en": "Asagaya", "ja": "阿佐ヶ谷", "x": 2417.4, "y": 2145.1}, "ogikubo": {"zh": "荻窪", "en": "Ogikubo", "ja": "荻窪", "x": 2270.1, "y": 2147.0}, "nishi-ogikubo": {"zh": "西荻窪", "en": "Nishi-Ogikubo", "ja": "西荻窪", "x": 2122.7, "y": 2149.0}, "kichijoji": {"zh": "吉祥寺", "en": "Kichijoji", "ja": "吉祥寺", "x": 1975.4, "y": 2150.9}, "mitaka": {"zh": "三鷹", "en": "Mitaka", "ja": "三鷹", "x": 1828.0, "y": 2152.8}, "musashi-sakai": {"zh": "武藏境", "en": "Musashi-Sakai", "ja": "武蔵境", "x": 1680.7, "y": 2154.8}, "higashi-koganei": {"zh": "東小金井", "en": "Higashi-Koganei", "ja": "東小金井", "x": 1533.4, "y": 2156.7}, "musashi-koganei": {"zh": "武藏小金井", "en": "Musashi-Koganei", "ja": "武蔵小金井", "x": 1386.0, "y": 2158.7}, "kokubunji": {"zh": "國分寺", "en": "Kokubunji", "ja": "国分寺", "x": 1238.7, "y": 2160.6}, "nishi-kokubunji": {"zh": "西國分寺", "en": "Nishi-Kokubunji", "ja": "西国分寺", "x": 1091.4, "y": 2162.5}, "kunitachi": {"zh": "國立", "en": "Kunitachi", "ja": "国立", "x": 944.0, "y": 2164.5}, "tachikawa": {"zh": "立川", "en": "Tachikawa", "ja": "立川", "x": 796.7, "y": 2166.4}, "hino": {"zh": "日野", "en": "Hino", "ja": "日野", "x": 649.3, "y": 2168.3}, "toyoda": {"zh": "豐田", "en": "Toyoda", "ja": "豊田", "x": 502.0, "y": 2170.3}, "hachioji": {"zh": "八王子", "en": "Hachioji", "ja": "八王子", "x": 354.7, "y": 2172.2}, "nishi-hachioji": {"zh": "西八王子", "en": "Nishi-Hachioji", "ja": "西八王子", "x": 207.3, "y": 2174.1}, "takao": {"zh": "高尾", "en": "Takao", "ja": "高尾", "x": 60.0, "y": 2176.1}, "higashi-nakano": {"zh": "東中野", "en": "Higashi-Nakano", "ja": "東中野", "x": 2795.9, "y": 2126.8}, "okubo": {"zh": "大久保", "en": "Okubo", "ja": "大久保", "x": 2839.3, "y": 2077.1}, "sendagaya": {"zh": "千駄谷", "en": "Sendagaya", "ja": "千駄ヶ谷", "x": 2949.6, "y": 2228.5}, "ichigaya": {"zh": "市谷", "en": "Ichigaya", "ja": "市ヶ谷", "x": 3344.4, "y": 2100.8}, "iidabashi": {"zh": "飯田橋", "en": "Iidabashi", "ja": "飯田橋", "x": 3580.4, "y": 1926.1}, "asakusabashi": {"zh": "淺草橋", "en": "Asakusabashi", "ja": "浅草橋", "x": 3969.9, "y": 1676.8}, "ryogoku": {"zh": "兩國", "en": "Ryogoku", "ja": "両国", "x": 4101.7, "y": 1722.5}, "kinshicho": {"zh": "錦絲町", "en": "Kinshicho", "ja": "錦糸町", "x": 4233.6, "y": 1768.2}, "kameido": {"zh": "龜戶", "en": "Kameido", "ja": "亀戸", "x": 4365.4, "y": 1813.9}, "shin-koiwa": {"zh": "新小岩", "en": "Shin-Koiwa", "ja": "新小岩", "x": 4497.3, "y": 1859.6}, "ichikawa": {"zh": "市川", "en": "Ichikawa", "ja": "市川", "x": 4629.2, "y": 1905.3}, "motoyawata": {"zh": "本八幡", "en": "Motoyawata", "ja": "本八幡", "x": 4761.0, "y": 1951.0}, "nishi-funabashi": {"zh": "西船橋", "en": "Nishi-Funabashi", "ja": "西船橋", "x": 4892.9, "y": 1996.7}, "tsudanuma": {"zh": "津田沼", "en": "Tsudanuma", "ja": "津田沼", "x": 5024.7, "y": 2042.4}, "chiba": {"zh": "千葉", "en": "Chiba", "ja": "千葉", "x": 5156.6, "y": 2088.1}, "oji": {"zh": "王子", "en": "Oji", "ja": "王子", "x": 3005.5, "y": 1146.0}, "akabane": {"zh": "赤羽", "en": "Akabane", "ja": "赤羽", "x": 2709.5, "y": 1101.4}, "kawaguchi": {"zh": "川口", "en": "Kawaguchi", "ja": "川口", "x": 2682.8, "y": 972.5}, "nishi-kawaguchi": {"zh": "西川口", "en": "Nishi-Kawaguchi", "ja": "西川口", "x": 2652.3, "y": 844.9}, "warabi": {"zh": "蕨", "en": "Warabi", "ja": "蕨", "x": 2614.9, "y": 719.6}, "minami-urawa": {"zh": "南浦和", "en": "Minami-Urawa", "ja": "南浦和", "x": 2569.6, "y": 596.9}, "urawa": {"zh": "浦和", "en": "Urawa", "ja": "浦和", "x": 2517.5, "y": 476.5}, "omiya": {"zh": "大宮", "en": "Omiya", "ja": "大宮", "x": 2461.5, "y": 357.4}, "oimachi": {"zh": "大井町", "en": "Oimachi", "ja": "大井町", "x": 3475.7, "y": 2991.0}, "omori": {"zh": "大森", "en": "Omori", "ja": "大森", "x": 3387.4, "y": 3359.7}, "kamata": {"zh": "蒲田", "en": "Kamata", "ja": "蒲田", "x": 3288.2, "y": 3725.5}, "kawasaki": {"zh": "川崎", "en": "Kawasaki", "ja": "川崎", "x": 3178.1, "y": 4088.4}, "yokohama": {"zh": "橫濱", "en": "Yokohama", "ja": "横浜", "x": 3061.3, "y": 4449.4}, "sakuragicho": {"zh": "櫻木町", "en": "Sakuragicho", "ja": "桜木町", "x": 3010.0, "y": 4612.0}, "totsuka": {"zh": "戶塚", "en": "Totsuka", "ja": "戸塚", "x": 2973.1, "y": 4576.9}, "ofuna": {"zh": "大船", "en": "Ofuna", "ja": "大船", "x": 2884.9, "y": 4704.4}, "fujisawa": {"zh": "藤澤", "en": "Fujisawa", "ja": "藤沢", "x": 2796.7, "y": 4831.9}, "chigasaki": {"zh": "茅崎", "en": "Chigasaki", "ja": "茅ヶ崎", "x": 2708.5, "y": 4959.4}, "hiratsuka": {"zh": "平塚", "en": "Hiratsuka", "ja": "平塚", "x": 2620.3, "y": 5086.9}, "kozu": {"zh": "國府津", "en": "Kozu", "ja": "国府津", "x": 2532.1, "y": 5214.4}, "odawara": {"zh": "小田原", "en": "Odawara", "ja": "小田原", "x": 2443.9, "y": 5341.9}, "yugawara": {"zh": "湯河原", "en": "Yugawara", "ja": "湯河原", "x": 2355.7, "y": 5469.4}, "atami": {"zh": "熱海", "en": "Atami", "ja": "熱海", "x": 2267.5, "y": 5596.9}, "kita-senju": {"zh": "北千住", "en": "Kita-Senju", "ja": "北千住", "x": 3589.4, "y": 1145.5}, "matsudo": {"zh": "松戶", "en": "Matsudo", "ja": "松戸", "x": 3674.0, "y": 1024.8}, "kashiwa": {"zh": "柏", "en": "Kashiwa", "ja": "柏", "x": 3758.6, "y": 904.2}, "abiko": {"zh": "我孫子", "en": "Abiko", "ja": "我孫子", "x": 3843.1, "y": 783.6}, "toride": {"zh": "取手", "en": "Toride", "ja": "取手", "x": 3927.7, "y": 663.0}, "ushiku": {"zh": "牛久", "en": "Ushiku", "ja": "牛久", "x": 4012.3, "y": 542.4}, "tsuchiura": {"zh": "土浦", "en": "Tsuchiura", "ja": "土浦", "x": 4096.8, "y": 421.8}, "ishioka": {"zh": "石岡", "en": "Ishioka", "ja": "石岡", "x": 4181.4, "y": 301.2}, "tomobe": {"zh": "友部", "en": "Tomobe", "ja": "友部", "x": 4266.0, "y": 180.6}, "mito": {"zh": "水戶", "en": "Mito", "ja": "水戸", "x": 4350.5, "y": 60.0}, "hatchobori": {"zh": "八丁堀", "en": "Hatchobori", "ja": "八丁堀", "x": 4010.6, "y": 1995.2}, "etchujima": {"zh": "越中島", "en": "Etchujima", "ja": "越中島", "x": 4126.6, "y": 2073.0}, "shin-kiba": {"zh": "新木場", "en": "Shin-Kiba", "ja": "新木場", "x": 4242.5, "y": 2150.7}, "kasai-rinkai": {"zh": "葛西臨海公園", "en": "Kasai-Rinkai-Koen", "ja": "葛西臨海公園", "x": 4358.4, "y": 2228.5}, "maihama": {"zh": "舞濱", "en": "Maihama", "ja": "舞浜", "x": 4474.3, "y": 2306.2}, "shin-urayasu": {"zh": "新浦安", "en": "Shin-Urayasu", "ja": "新浦安", "x": 4590.2, "y": 2384.0}, "minami-funabashi": {"zh": "南船橋", "en": "Minami-Funabashi", "ja": "南船橋", "x": 4706.1, "y": 2461.7}, "shin-narashino": {"zh": "新習志野", "en": "Shin-Narashino", "ja": "新習志野", "x": 4822.0, "y": 2539.5}, "kaihin-makuhari": {"zh": "海濱幕張", "en": "Kaihin-Makuhari", "ja": "海浜幕張", "x": 4937.9, "y": 2617.2}, "kemigawahama": {"zh": "檢見川濱", "en": "Kemigawahama", "ja": "検見川浜", "x": 5053.9, "y": 2695.0}, "chiba-minato": {"zh": "千葉港", "en": "Chiba-Minato", "ja": "千葉みなと", "x": 5169.8, "y": 2772.8}, "soga": {"zh": "蘇我", "en": "Soga", "ja": "蘇我", "x": 5285.7, "y": 2850.5}, "ukima-funado": {"zh": "浮間舟渡", "en": "Ukima-Funado", "ja": "浮間舟渡", "x": 2661.6, "y": 1014.1}, "toda": {"zh": "戶田", "en": "Toda", "ja": "戸田", "x": 2616.3, "y": 925.8}, "toda-koen": {"zh": "戶田公園", "en": "Toda-Koen", "ja": "戸田公園", "x": 2575.7, "y": 836.0}, "musashi-urawa": {"zh": "武藏浦和", "en": "Musashi-Urawa", "ja": "武蔵浦和", "x": 2541.4, "y": 744.1}, "naka-urawa": {"zh": "中浦和", "en": "Naka-Urawa", "ja": "中浦和", "x": 2513.7, "y": 650.0}, "minami-yono": {"zh": "南与野", "en": "Minami-Yono", "ja": "南与野", "x": 2492.3, "y": 553.8}, "yono-honmachi": {"zh": "与野本町", "en": "Yono-Honmachi", "ja": "与野本町", "x": 2475.6, "y": 456.1}, "kawagoe": {"zh": "川越", "en": "Kawagoe", "ja": "川越", "x": 2322.0, "y": 202.4}, "omotesando": {"zh": "表參道", "en": "Omotesando", "ja": "表参道", "x": 3036.8, "y": 2369.4}, "gaiemmae": {"zh": "外苑前", "en": "Gaiemmae", "ja": "外苑前", "x": 3083.3, "y": 2307.4}, "aoyama-itchome": {"zh": "青山一丁目", "en": "Aoyama-itchome", "ja": "青山一丁目", "x": 3145.3, "y": 2260.9}, "akasaka-mitsuke": {"zh": "赤坂見附", "en": "Akasaka-mitsuke", "ja": "赤坂見附", "x": 3532.5, "y": 1926.8}, "tameike-sanno": {"zh": "溜池山王", "en": "Tameike-sanno", "ja": "溜池山王", "x": 3563.5, "y": 2035.3}, "toranomon": {"zh": "虎之門", "en": "Toranomon", "ja": "虎ノ門", "x": 3692.3, "y": 2156.2}, "ginza": {"zh": "銀座", "en": "Ginza", "ja": "銀座", "x": 3935.5, "y": 2112.8}, "kyobashi": {"zh": "京橋", "en": "Kyobashi", "ja": "京橋", "x": 3984.8, "y": 1947.8}, "nihombashi": {"zh": "日本橋", "en": "Nihombashi", "ja": "日本橋", "x": 3956.7, "y": 1777.9}, "mitsukoshimae": {"zh": "三越前", "en": "Mitsukoshimae", "ja": "三越前", "x": 3920.9, "y": 1735.5}, "suehirocho": {"zh": "末廣町", "en": "Suehirocho", "ja": "末広町", "x": 3848.6, "y": 1632.5}, "ueno-hirokoji": {"zh": "上野廣小路", "en": "Ueno-hirokoji", "ja": "上野広小路", "x": 3789.5, "y": 1509.3}, "inaricho": {"zh": "稻荷町", "en": "Inaricho", "ja": "稲荷町", "x": 3721.7, "y": 1474.8}, "tawaramachi": {"zh": "田原町", "en": "Tawaramachi", "ja": "田原町", "x": 3768.2, "y": 1526.4}, "asakusa": {"zh": "淺草", "en": "Asakusa", "ja": "浅草", "x": 3839.6, "y": 1555.7}, "nishi-shinjuku": {"zh": "西新宿", "en": "Nishi-Shinjuku", "ja": "西新宿", "x": 2812.9, "y": 2108.3}, "shinjuku-sanchome": {"zh": "新宿三丁目", "en": "Shinjuku-sanchome", "ja": "新宿三丁目", "x": 2905.9, "y": 2170.3}, "yotsuya-sanchome": {"zh": "四谷三丁目", "en": "Yotsuya-sanchome", "ja": "四谷三丁目", "x": 3014.4, "y": 2216.8}, "kokkai-gijidomae": {"zh": "國會議事堂前", "en": "Kokkai-gijidomae", "ja": "国会議事堂前", "x": 3656.5, "y": 1957.8}, "kasumigaseki": {"zh": "霞關", "en": "Kasumigaseki", "ja": "霞ケ関", "x": 3672.0, "y": 2035.3}, "otemachi": {"zh": "大手町", "en": "Otemachi", "ja": "大手町", "x": 3755.2, "y": 1870.9}, "awajicho": {"zh": "淡路町", "en": "Awajicho", "ja": "淡路町", "x": 3808.0, "y": 1796.4}, "hongo-sanchome": {"zh": "本鄉三丁目", "en": "Hongo-sanchome", "ja": "本郷三丁目", "x": 3832.7, "y": 1498.9}, "korakuen": {"zh": "後樂園", "en": "Korakuen", "ja": "後楽園", "x": 3693.2, "y": 1545.4}, "myogadani": {"zh": "茗荷谷", "en": "Myogadani", "ja": "茗荷谷", "x": 3436.7, "y": 1518.9}, "shin-otsuka": {"zh": "新大塚", "en": "Shin-Otsuka", "ja": "新大塚", "x": 3181.1, "y": 1525.9}, "hiroo": {"zh": "廣尾", "en": "Hiroo", "ja": "広尾", "x": 3337.4, "y": 2399.4}, "roppongi": {"zh": "六本木", "en": "Roppongi", "ja": "六本木", "x": 3486.0, "y": 2159.3}, "kamiyacho": {"zh": "神谷町", "en": "Kamiyacho", "ja": "神谷町", "x": 3600.5, "y": 2129.5}, "hibiya": {"zh": "日比谷", "en": "Hibiya", "ja": "日比谷", "x": 3811.5, "y": 2081.8}, "higashi-ginza": {"zh": "東銀座", "en": "Higashi-Ginza", "ja": "東銀座", "x": 3966.5, "y": 2143.8}, "tsukiji": {"zh": "築地", "en": "Tsukiji", "ja": "築地", "x": 4059.5, "y": 2174.8}, "ningyocho": {"zh": "人形町", "en": "Ningyocho", "ja": "人形町", "x": 4016.7, "y": 1980.9}, "kodemmacho": {"zh": "小傳馬町", "en": "Kodemmacho", "ja": "小伝馬町", "x": 3942.9, "y": 1799.7}, "naka-okachimachi": {"zh": "仲御徒町", "en": "Naka-Okachimachi", "ja": "仲御徒町", "x": 3802.3, "y": 1496.0}, "minowa": {"zh": "三之輪", "en": "Minowa", "ja": "三ノ輪", "x": 3694.0, "y": 1302.2}, "waseda": {"zh": "早稻田", "en": "Waseda", "ja": "早稲田", "x": 3088.3, "y": 1904.2}, "kagurazaka": {"zh": "神樂坂", "en": "Kagurazaka", "ja": "神楽坂", "x": 3332.5, "y": 1931.8}, "kudanshita": {"zh": "九段下", "en": "Kudanshita", "ja": "九段下", "x": 3662.2, "y": 1653.9}, "kayabacho": {"zh": "茅場町", "en": "Kayabacho", "ja": "茅場町", "x": 4018.7, "y": 1886.4}, "monzen-nakacho": {"zh": "門前仲町", "en": "Monzen-nakacho", "ja": "門前仲町", "x": 4158.2, "y": 1948.4}, "kiba": {"zh": "木場", "en": "Kiba", "ja": "木場", "x": 4266.7, "y": 1917.4}, "toyocho": {"zh": "東陽町", "en": "Toyocho", "ja": "東陽町", "x": 4359.7, "y": 1901.9}, "minami-sunamachi": {"zh": "南砂町", "en": "Minami-sunamachi", "ja": "南砂町", "x": 4432.9, "y": 1932.0}, "nishi-kasai": {"zh": "西葛西", "en": "Nishi-Kasai", "ja": "西葛西", "x": 4506.8, "y": 1958.8}, "urayasu": {"zh": "浦安", "en": "Urayasu", "ja": "浦安", "x": 4581.6, "y": 1979.7}, "gyotoku": {"zh": "行德", "en": "Gyotoku", "ja": "行徳", "x": 4657.8, "y": 1993.3}, "myoden": {"zh": "妙典", "en": "Myoden", "ja": "妙典", "x": 4735.2, "y": 1999.5}, "baraki-nakayama": {"zh": "原木中山", "en": "Baraki-Nakayama", "ja": "原木中山", "x": 4813.8, "y": 1999.7}, "yoyogi-koen": {"zh": "代代木公園", "en": "Yoyogi-koen", "ja": "代々木公園", "x": 2974.8, "y": 2338.4}, "meiji-jingumae": {"zh": "明治神宮前", "en": "Meiji-jingumae", "ja": "明治神宮前", "x": 3005.8, "y": 2400.4}, "nogizaka": {"zh": "乃木坂", "en": "Nogizaka", "ja": "乃木坂", "x": 3114.3, "y": 2338.4}, "akasaka": {"zh": "赤坂", "en": "Akasaka", "ja": "赤坂", "x": 3176.3, "y": 2384.9}, "shin-ochanomizu": {"zh": "新御茶之水", "en": "Shin-Ochanomizu", "ja": "新御茶ノ水", "x": 3829.2, "y": 1708.4}, "yushima": {"zh": "湯島", "en": "Yushima", "ja": "湯島", "x": 3870.5, "y": 1537.9}, "nezu": {"zh": "根津", "en": "Nezu", "ja": "根津", "x": 3879.2, "y": 1359.4}, "sendagi": {"zh": "千駄木", "en": "Sendagi", "ja": "千駄木", "x": 3646.7, "y": 1263.4}, "machiya": {"zh": "町屋", "en": "Machiya", "ja": "町屋", "x": 3510.1, "y": 1228.7}, "ayase": {"zh": "綾瀨", "en": "Ayase", "ja": "綾瀬", "x": 3728.9, "y": 1114.5}, "wakoshi": {"zh": "和光市", "en": "Wakoshi", "ja": "和光市", "x": 2771.5, "y": 1256.4}, "heiwadai": {"zh": "和平台", "en": "Heiwadai", "ja": "平和台", "x": 2748.6, "y": 1333.5}, "hikawadai": {"zh": "冰川台", "en": "Hikawadai", "ja": "氷川台", "x": 2758.9, "y": 1405.8}, "kotake-mukaihara": {"zh": "小竹向原", "en": "Kotake-Mukaihara", "ja": "小竹向原", "x": 2802.5, "y": 1473.4}, "senkawa": {"zh": "千川", "en": "Senkawa", "ja": "千川", "x": 2849.0, "y": 1488.9}, "kanamecho": {"zh": "要町", "en": "Kanamecho", "ja": "要町", "x": 2880.0, "y": 1519.9}, "gokokuji": {"zh": "護國寺", "en": "Gokokuji", "ja": "護国寺", "x": 3128.3, "y": 1715.7}, "edogawabashi": {"zh": "江戶川橋", "en": "Edogawabashi", "ja": "江戸川橋", "x": 3346.3, "y": 1835.6}, "kojimachi": {"zh": "麹町", "en": "Kojimachi", "ja": "麹町", "x": 3485.3, "y": 2080.2}, "nagatacho": {"zh": "永田町", "en": "Nagatacho", "ja": "永田町", "x": 3594.5, "y": 1988.8}, "sakuradamon": {"zh": "櫻田門", "en": "Sakuradamon", "ja": "桜田門", "x": 3731.8, "y": 2065.0}, "ginza-itchome": {"zh": "銀座一丁目", "en": "Ginza-itchome", "ja": "銀座一丁目", "x": 3954.4, "y": 2105.3}, "tsukishima": {"zh": "月島", "en": "Tsukishima", "ja": "月島", "x": 4021.8, "y": 2135.9}, "toyosu": {"zh": "豐洲", "en": "Toyosu", "ja": "豊洲", "x": 4092.5, "y": 2152.8}, "tatsumi": {"zh": "辰巳", "en": "Tatsumi", "ja": "辰巳", "x": 4166.5, "y": 2156.0}, "hanzomon": {"zh": "半藏門", "en": "Hanzomon", "ja": "半蔵門", "x": 3708.7, "y": 1700.4}, "jimbocho": {"zh": "神保町", "en": "Jimbocho", "ja": "神保町", "x": 3677.7, "y": 1731.4}, "suitengumae": {"zh": "水天宮前", "en": "Suitengumae", "ja": "水天宮前", "x": 3988.0, "y": 1811.8}, "kiyosumi-shirakawa": {"zh": "清澄白河", "en": "Kiyosumi-Shirakawa", "ja": "清澄白河", "x": 4071.5, "y": 1858.9}, "sumiyoshi": {"zh": "住吉", "en": "Sumiyoshi", "ja": "住吉", "x": 4171.6, "y": 1876.7}, "oshiage": {"zh": "押上", "en": "Oshiage", "ja": "押上", "x": 3994.6, "y": 1617.7}, "shirokanedai": {"zh": "白金台", "en": "Shirokanedai", "ja": "白金台", "x": 3419.2, "y": 2565.4}, "shirokane-takanawa": {"zh": "白金高輪", "en": "Shirokane-Takanawa", "ja": "白金高輪", "x": 3563.5, "y": 2422.8}, "azabu-juban": {"zh": "麻布十番", "en": "Azabu-juban", "ja": "麻布十番", "x": 3532.5, "y": 2283.3}, "roppongi-itchome": {"zh": "六本木一丁目", "en": "Roppongi-itchome", "ja": "六本木一丁目", "x": 3548.0, "y": 2097.3}, "nishigahara": {"zh": "西之原", "en": "Nishigahara", "ja": "西ケ原", "x": 3117.2, "y": 1187.6}, "oji-kamiya": {"zh": "王子神谷", "en": "Oji-Kamiya", "ja": "王子神谷", "x": 2920.7, "y": 1046.7}, "shimo": {"zh": "志茂", "en": "Shimo", "ja": "志茂", "x": 2816.9, "y": 975.0}, "akabane-iwabuchi": {"zh": "赤羽岩淵", "en": "Akabane-Iwabuchi", "ja": "赤羽岩淵", "x": 2694.0, "y": 930.9}, "zoshigaya": {"zh": "雑司谷", "en": "Zoshigaya", "ja": "雑司が谷", "x": 2880.0, "y": 1628.4}, "nishi-waseda": {"zh": "西早稻田", "en": "Nishi-Waseda", "ja": "西早稲田", "x": 2833.5, "y": 1674.9}, "higashi-shinjuku": {"zh": "東新宿", "en": "Higashi-Shinjuku", "ja": "東新宿", "x": 2787.0, "y": 1767.9}, "kita-sando": {"zh": "北參道", "en": "Kita-sando", "ja": "北参道", "x": 3083.3, "y": 2369.4}, "nakano-sakaue": {"zh": "中野坂上", "en": "Nakano-sakaue", "ja": "中野坂上", "x": 2719.9, "y": 2108.3}, "naka-meguro": {"zh": "中目黑", "en": "Naka-Meguro", "ja": "中目黒", "x": 3263.1, "y": 2550.5}, "minami-senju": {"zh": "南千住", "en": "Minami-Senju", "ja": "南千住", "x": 3657.1, "y": 1217.2}, "kasuga": {"zh": "春日", "en": "Kasuga", "ja": "春日", "x": 3724.2, "y": 1591.9}, "nishi-magome": {"zh": "西馬込", "en": "Nishi-Magome", "ja": "西馬込", "x": 3216.9, "y": 2868.3}, "nakanobu": {"zh": "中延", "en": "Nakanobu", "ja": "中延", "x": 3286.8, "y": 2818.7}, "togoshi": {"zh": "戶越", "en": "Togoshi", "ja": "戸越", "x": 3328.1, "y": 2751.5}, "takanawadai": {"zh": "高輪台", "en": "Takanawadai", "ja": "高輪台", "x": 3465.0, "y": 2620.0}, "sengakuji": {"zh": "泉岳寺", "en": "Sengakuji", "ja": "泉岳寺", "x": 3541.8, "y": 2511.9}, "mita": {"zh": "三田", "en": "Mita", "ja": "三田", "x": 3772.1, "y": 2412.4}, "daimon": {"zh": "大門", "en": "Daimon", "ja": "大門", "x": 3851.8, "y": 2326.9}, "kuramae": {"zh": "藏前", "en": "Kuramae", "ja": "蔵前", "x": 3793.1, "y": 1462.7}, "honjo-azumabashi": {"zh": "本所吾妻橋", "en": "Honjo-Azumabashi", "ja": "本所吾妻橋", "x": 3902.7, "y": 1622.6}, "shibakoen": {"zh": "芝公園", "en": "Shibakoen", "ja": "芝公園", "x": 3809.1, "y": 2333.0}, "onarimon": {"zh": "御成門", "en": "Onarimon", "ja": "御成門", "x": 3830.3, "y": 2251.7}, "uchisaiwaicho": {"zh": "內幸町", "en": "Uchisaiwaicho", "ja": "内幸町", "x": 3828.8, "y": 2167.7}, "suidobashi": {"zh": "水道橋", "en": "Suidobashi", "ja": "水道橋", "x": 3737.7, "y": 1674.0}, "hakusan": {"zh": "白山", "en": "Hakusan", "ja": "白山", "x": 3521.5, "y": 1482.0}, "sengoku": {"zh": "千石", "en": "Sengoku", "ja": "千石", "x": 3307.2, "y": 1403.7}, "nishi-sugamo": {"zh": "西巢鴨", "en": "Nishi-Sugamo", "ja": "西巣鴨", "x": 3066.8, "y": 1289.1}, "shin-itabashi": {"zh": "新板橋", "en": "Shin-Itabashi", "ja": "新板橋", "x": 3044.7, "y": 1226.0}, "itabashi-honcho": {"zh": "板橋本町", "en": "Itabashi-Honcho", "ja": "板橋本町", "x": 3010.6, "y": 1170.2}, "shimura-sakaue": {"zh": "志村坂上", "en": "Shimura-Sakaue", "ja": "志村坂上", "x": 2964.5, "y": 1121.7}, "nishi-takashimadaira": {"zh": "西高島平", "en": "Nishi-Takashimadaira", "ja": "西高島平", "x": 2910.9, "y": 1077.8}, "akebonobashi": {"zh": "曙橋", "en": "Akebonobashi", "ja": "曙橋", "x": 3131.2, "y": 2173.8}, "ogawamachi": {"zh": "小川町", "en": "Ogawamachi", "ja": "小川町", "x": 3830.9, "y": 1742.2}, "bakuroyokoyama": {"zh": "馬喰橫山", "en": "Bakuro-Yokoyama", "ja": "馬喰横山", "x": 3994.3, "y": 1742.8}, "hamacho": {"zh": "濱町", "en": "Hamacho", "ja": "浜町", "x": 4040.9, "y": 1783.6}, "morishita": {"zh": "森下", "en": "Morishita", "ja": "森下", "x": 4109.6, "y": 1799.2}, "kikukawa": {"zh": "菊川", "en": "Kikukawa", "ja": "菊川", "x": 4110.3, "y": 1862.1}, "nishi-oshima": {"zh": "西大島", "en": "Nishi-Oshima", "ja": "西大島", "x": 4253.7, "y": 1904.0}, "oshima": {"zh": "大島", "en": "Oshima", "ja": "大島", "x": 4336.2, "y": 1928.0}, "higashi-ojima": {"zh": "東大島", "en": "Higashi-Ojima", "ja": "東大島", "x": 4419.5, "y": 1946.0}, "funabori": {"zh": "船堀", "en": "Funabori", "ja": "船堀", "x": 4503.7, "y": 1956.6}, "ichinoe": {"zh": "一之江", "en": "Ichinoe", "ja": "一之江", "x": 4588.8, "y": 1959.8}, "mizue": {"zh": "瑞江", "en": "Mizue", "ja": "瑞江", "x": 4674.7, "y": 1957.1}, "tochomae": {"zh": "都廳前", "en": "Tochomae", "ja": "都庁前", "x": 2797.4, "y": 2092.8}, "kokuritsu-kyogijo": {"zh": "國立競技場", "en": "Kokuritsu-Kyogijo", "ja": "国立競技場", "x": 3024.9, "y": 2308.3}, "akabanebashi": {"zh": "赤羽橋", "en": "Akabanebashi", "ja": "赤羽橋", "x": 3686.9, "y": 2343.5}, "shiodome": {"zh": "汐留", "en": "Shiodome", "ja": "汐留", "x": 3949.7, "y": 2249.5}, "tsukijishijo": {"zh": "築地市場", "en": "Tsukiji-shijo", "ja": "築地市場", "x": 4035.1, "y": 2162.0}, "kachidoki": {"zh": "勝鬨", "en": "Kachidoki", "ja": "勝どき", "x": 4102.9, "y": 2060.3}, "shin-okachimachi": {"zh": "新御徒町", "en": "Shin-Okachimachi", "ja": "新御徒町", "x": 3786.7, "y": 1509.4}, "kagurazaka-toei": {"zh": "牛込神樂坂", "en": "Ushigome-Kagurazaka", "ja": "牛込神楽坂", "x": 3387.4, "y": 1859.7}, "ushigome-yanagicho": {"zh": "牛込柳町", "en": "Ushigome-Yanagicho", "ja": "牛込柳町", "x": 3191.3, "y": 1809.0}, "wakamatsu-kawada": {"zh": "若松河田", "en": "Wakamatsu-Kawada", "ja": "若松河田", "x": 2990.7, "y": 1780.6}}, "lines": [{"code": "JY", "name": "山手線", "color": "#9ACD32", "loop": true, "path": ["tokyo", "kanda", "akihabara", "okachimachi", "ueno", "uguisudani", "nippori", "nishi-nippori", "tabata", "komagome", "sugamo", "otsuka", "ikebukuro", "mejiro", "takadanobaba", "shin-okubo", "shinjuku", "yoyogi", "harajuku", "shibuya", "ebisu", "meguro", "gotanda", "osaki", "shinagawa", "takanawa-gw", "tamachi", "hamamatsucho", "shimbashi", "yurakucho"]}, {"code": "JC", "name": "中央線快速", "color": "#F15A22", "loop": false, "path": ["tokyo", "kanda", "ochanomizu", "yotsuya", "shinjuku", "nakano", "koenji", "asagaya", "ogikubo", "nishi-ogikubo", "kichijoji", "mitaka", "musashi-sakai", "higashi-koganei", "musashi-koganei", "kokubunji", "nishi-kokubunji", "kunitachi", "tachikawa", "hino", "toyoda", "hachioji", "nishi-hachioji", "takao"]}, {"code": "JB", "name": "中央‧總武線各站", "color": "#FFD400", "loop": false, "path": ["mitaka", "kichijoji", "nishi-ogikubo", "ogikubo", "asagaya", "koenji", "nakano", "higashi-nakano", "okubo", "shinjuku", "sendagaya", "yotsuya", "ichigaya", "iidabashi", "ochanomizu", "akihabara", "asakusabashi", "ryogoku", "kinshicho", "kameido", "shin-koiwa", "ichikawa", "motoyawata", "nishi-funabashi", "tsudanuma", "chiba"]}, {"code": "JK", "name": "京濱東北線", "color": "#00B2E5", "loop": false, "path": ["omiya", "urawa", "minami-urawa", "warabi", "nishi-kawaguchi", "kawaguchi", "akabane", "oji", "tabata", "nishi-nippori", "nippori", "uguisudani", "ueno", "okachimachi", "akihabara", "kanda", "tokyo", "yurakucho", "shimbashi", "hamamatsucho", "tamachi", "shinagawa", "oimachi", "omori", "kamata", "kawasaki", "yokohama", "sakuragicho"]}, {"code": "JT", "name": "東海道線", "color": "#F68B1E", "loop": false, "path": ["tokyo", "shimbashi", "shinagawa", "kawasaki", "yokohama", "totsuka", "ofuna", "fujisawa", "chigasaki", "hiratsuka", "kozu", "odawara", "yugawara", "atami"]}, {"code": "JJ", "name": "常磐線快速", "color": "#00A650", "loop": false, "path": ["ueno", "nippori", "kita-senju", "matsudo", "kashiwa", "abiko", "toride", "ushiku", "tsuchiura", "ishioka", "tomobe", "mito"]}, {"code": "JE", "name": "京葉線", "color": "#C9252B", "loop": false, "path": ["tokyo", "hatchobori", "etchujima", "shin-kiba", "kasai-rinkai", "maihama", "shin-urayasu", "minami-funabashi", "shin-narashino", "kaihin-makuhari", "kemigawahama", "chiba-minato", "soga"]}, {"code": "JA", "name": "埼京線", "color": "#00AC9A", "loop": false, "path": ["osaki", "shibuya", "shinjuku", "ikebukuro", "akabane", "ukima-funado", "toda", "toda-koen", "musashi-urawa", "naka-urawa", "minami-yono", "yono-honmachi", "omiya", "kawagoe"]}, {"code": "G", "name": "銀座線", "color": "#FF9500", "loop": false, "path": ["shibuya", "omotesando", "gaiemmae", "aoyama-itchome", "akasaka-mitsuke", "tameike-sanno", "toranomon", "shimbashi", "ginza", "kyobashi", "nihombashi", "mitsukoshimae", "kanda", "suehirocho", "ueno-hirokoji", "ueno", "inaricho", "tawaramachi", "asakusa"]}, {"code": "M", "name": "丸之內線", "color": "#E60012", "loop": false, "path": ["ogikubo", "nakano-sakaue", "nishi-shinjuku", "shinjuku", "shinjuku-sanchome", "yotsuya-sanchome", "yotsuya", "akasaka-mitsuke", "kokkai-gijidomae", "kasumigaseki", "ginza", "tokyo", "otemachi", "awajicho", "ochanomizu", "hongo-sanchome", "korakuen", "myogadani", "shin-otsuka", "ikebukuro"]}, {"code": "H", "name": "日比谷線", "color": "#B5B5AC", "loop": false, "path": ["naka-meguro", "ebisu", "hiroo", "roppongi", "kamiyacho", "kasumigaseki", "hibiya", "ginza", "higashi-ginza", "tsukiji", "ningyocho", "kodemmacho", "akihabara", "naka-okachimachi", "ueno", "minowa", "minami-senju", "kita-senju"]}, {"code": "T", "name": "東西線", "color": "#009BBF", "loop": false, "path": ["nakano", "takadanobaba", "waseda", "kagurazaka", "iidabashi", "kudanshita", "otemachi", "nihombashi", "kayabacho", "monzen-nakacho", "kiba", "toyocho", "minami-sunamachi", "nishi-kasai", "urayasu", "gyotoku", "myoden", "baraki-nakayama", "nishi-funabashi"]}, {"code": "C", "name": "千代田線", "color": "#00A650", "loop": false, "path": ["yoyogi-koen", "meiji-jingumae", "omotesando", "nogizaka", "akasaka", "kokkai-gijidomae", "kasumigaseki", "hibiya", "otemachi", "shin-ochanomizu", "yushima", "nezu", "sendagi", "nishi-nippori", "machiya", "kita-senju", "ayase"]}, {"code": "Y", "name": "有樂町線", "color": "#C1A470", "loop": false, "path": ["wakoshi", "heiwadai", "hikawadai", "kotake-mukaihara", "senkawa", "kanamecho", "ikebukuro", "gokokuji", "edogawabashi", "iidabashi", "ichigaya", "kojimachi", "nagatacho", "sakuradamon", "yurakucho", "ginza-itchome", "tsukishima", "toyosu", "tatsumi", "shin-kiba"]}, {"code": "Z", "name": "半藏門線", "color": "#8F76D6", "loop": false, "path": ["shibuya", "omotesando", "aoyama-itchome", "nagatacho", "hanzomon", "kudanshita", "jimbocho", "otemachi", "mitsukoshimae", "suitengumae", "kiyosumi-shirakawa", "sumiyoshi", "kinshicho", "oshiage"]}, {"code": "N", "name": "南北線", "color": "#00ADA9", "loop": false, "path": ["meguro", "shirokanedai", "shirokane-takanawa", "azabu-juban", "roppongi-itchome", "tameike-sanno", "nagatacho", "yotsuya", "ichigaya", "iidabashi", "korakuen", "hongo-sanchome", "komagome", "nishigahara", "oji", "oji-kamiya", "shimo", "akabane-iwabuchi"]}, {"code": "F", "name": "副都心線", "color": "#B94198", "loop": false, "path": ["wakoshi", "kotake-mukaihara", "senkawa", "kanamecho", "ikebukuro", "zoshigaya", "nishi-waseda", "higashi-shinjuku", "shinjuku-sanchome", "kita-sando", "meiji-jingumae", "shibuya"]}, {"code": "A", "name": "都營淺草線", "color": "#E85298", "loop": false, "path": ["nishi-magome", "nakanobu", "togoshi", "gotanda", "takanawadai", "sengakuji", "mita", "daimon", "shimbashi", "higashi-ginza", "nihombashi", "asakusabashi", "kuramae", "asakusa", "honjo-azumabashi", "oshiage"]}, {"code": "I", "name": "都營三田線", "color": "#0079C2", "loop": false, "path": ["meguro", "shirokanedai", "shirokane-takanawa", "mita", "shibakoen", "onarimon", "uchisaiwaicho", "hibiya", "otemachi", "jimbocho", "suidobashi", "kasuga", "hakusan", "sengoku", "sugamo", "nishi-sugamo", "shin-itabashi", "itabashi-honcho", "shimura-sakaue", "nishi-takashimadaira"]}, {"code": "S", "name": "都營新宿線", "color": "#6CBB5A", "loop": false, "path": ["shinjuku", "shinjuku-sanchome", "akebonobashi", "ichigaya", "kudanshita", "jimbocho", "ogawamachi", "asakusabashi", "bakuroyokoyama", "hamacho", "morishita", "kikukawa", "sumiyoshi", "nishi-oshima", "oshima", "higashi-ojima", "funabori", "ichinoe", "mizue", "motoyawata"]}, {"code": "E", "name": "都營大江戶線", "color": "#B6007A", "loop": true, "path": ["tochomae", "shinjuku", "yoyogi", "kokuritsu-kyogijo", "aoyama-itchome", "roppongi", "azabu-juban", "akabanebashi", "daimon", "shiodome", "tsukijishijo", "kachidoki", "monzen-nakacho", "morishita", "ryogoku", "kuramae", "shin-okachimachi", "hongo-sanchome", "korakuen", "iidabashi", "kagurazaka-toei", "ushigome-yanagicho", "wakamatsu-kawada", "higashi-shinjuku", "tochomae"]}]};
+</script>
+<script>
+(function(){
+  const svg = document.getElementById('svg');
+  const viewport = document.getElementById('viewport');
+  const linesLayer = document.getElementById('lines-layer');
+  const stationsLayer = document.getElementById('stations-layer');
+  svg.setAttribute('viewBox', `0 0 ${DATA.width} ${DATA.height}`);
+
+  // ---- build line paths ----
+  DATA.lines.forEach(line => {
+    const pts = line.path.map(id => DATA.stations[id]);
+    let d = 'M ' + pts.map(p => `${p.x},${p.y}`).join(' L ');
+    if(line.loop) d += ' Z';
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', d);
+    path.setAttribute('class','line-path');
+    path.setAttribute('stroke', line.color);
+    path.setAttribute('id', 'line-' + line.code);
+    linesLayer.appendChild(path);
+  });
+
+  // ---- station -> line membership ----
+  const stationLines = {};
+  DATA.lines.forEach(line=>{
+    line.path.forEach(id=>{
+      (stationLines[id] = stationLines[id]||[]).push(line.code);
+    });
+  });
+
+  // ---- build station dots ----
+  const dotEls = {}, labelEls = {};
+  Object.entries(DATA.stations).forEach(([id, st])=>{
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx', st.x); c.setAttribute('cy', st.y);
+    c.setAttribute('r', 9);
+    c.setAttribute('class','station-dot unfound');
+    c.dataset.id = id;
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x', st.x + 13); t.setAttribute('y', st.y + 5);
+    t.setAttribute('class','station-label');
+    t.textContent = st.zh;
+    g.appendChild(c); g.appendChild(t);
+    stationsLayer.appendChild(g);
+    dotEls[id] = c; labelEls[id] = t;
+    c.addEventListener('click', ()=>{ if(!found.has(id) && !gameOver){ input.value = st.zh; input.focus(); } });
+  });
+
+  // ---- normalization / matching ----
+  const VARIANT_MAP = {
+    '涩':'澀','泽':'澤','浜':'濱','桥':'橋','龙':'龍','岛':'島','荣':'榮',
+    '国':'國','东':'東','当':'當','广':'廣','门':'門','丰':'豐','龟':'龜',
+    '苏':'蘇','树':'樹','沢':'澤','渋':'澀','変':'變','検':'檢','駅':'',
+  };
+  function normalize(s){
+    if(!s) return '';
+    s = s.trim().toLowerCase();
+    s = s.replace(/\s+/g,'');
+    s = s.replace(/station$|駅$|站$/g,'');
+    s = s.replace(/[-‧・']/g,'');
+    s = s.split('').map(ch=>VARIANT_MAP[ch]!==undefined?VARIANT_MAP[ch]:ch).join('');
+    return s;
+  }
+  const answerIndex = {}; // normalized string -> station id
+  Object.entries(DATA.stations).forEach(([id, st])=>{
+    [st.zh, st.en, st.ja].forEach(v=>{
+      const n = normalize(v);
+      if(n) answerIndex[n] = id;
+    });
+  });
+
+  // ---- state ----
+  const found = new Set();
+  let gameOver = false;
+  const totalUnique = Object.keys(DATA.stations).length;
+  document.getElementById('totalCount').textContent = totalUnique;
+
+  function lineFoundCount(line){
+    const ids = new Set(line.path);
+    let n = 0; ids.forEach(id=>{ if(found.has(id)) n++; });
+    return n;
+  }
+
+  // ---- line show/hide ----
+  const visibleLines = new Set(DATA.lines.map(l=>l.code));
+  function applyLineVisibility(){
+    DATA.lines.forEach(line=>{
+      const path = document.getElementById('line-'+line.code);
+      if(path) path.style.display = visibleLines.has(line.code) ? '' : 'none';
+    });
+    Object.keys(DATA.stations).forEach(id=>{
+      const anyVisible = (stationLines[id]||[]).some(code=>visibleLines.has(code));
+      const g = dotEls[id].parentNode;
+      g.style.display = anyVisible ? '' : 'none';
+    });
+  }
+  function setLineVisible(code, visible){
+    if(visible) visibleLines.add(code); else visibleLines.delete(code);
+    applyLineVisibility();
+    renderLineList();
+  }
+
+  function renderLineList(){
+    const box = document.getElementById('lineList');
+    box.innerHTML = '';
+    DATA.lines.forEach(line=>{
+      const total = new Set(line.path).size;
+      const n = lineFoundCount(line);
+      const pct = total? (n/total*100).toFixed(0):0;
+      const visible = visibleLines.has(line.code);
+      const row = document.createElement('div');
+      row.className = 'line-row' + (visible ? '' : ' line-off');
+      row.innerHTML = `<input type="checkbox" class="lvis" ${visible?'checked':''} title="是否顯示在地圖上">
+        <span class="swatch" style="background:${line.color}"></span>
+        <span class="lname">${line.code} ${line.name}</span>
+        <span class="lcount">${n}/${total} · ${pct}%</span>`;
+      row.querySelector('.lvis').addEventListener('change', e=>{
+        setLineVisible(line.code, e.target.checked);
+      });
+      box.appendChild(row);
+    });
+  }
+
+  document.getElementById('showAllLines').addEventListener('click', ()=>{
+    DATA.lines.forEach(l=>visibleLines.add(l.code));
+    applyLineVisibility(); renderLineList();
+  });
+  document.getElementById('hideAllLines').addEventListener('click', ()=>{
+    visibleLines.clear();
+    applyLineVisibility(); renderLineList();
+  });
+
+  function updateHeader(){
+    document.getElementById('foundCount').textContent = found.size;
+    document.getElementById('pct').textContent = (found.size/totalUnique*100).toFixed(1)+'%';
+  }
+
+  function renderFoundList(){
+    const box = document.getElementById('foundList');
+    box.innerHTML = '';
+    [...found].forEach(id=>{
+      const st = DATA.stations[id];
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.textContent = `${st.zh} ${st.ja!==st.zh? '('+st.ja+')':''}`;
+      box.appendChild(chip);
+    });
+  }
+
+  let toastTimer=null;
+  function toast(msg, cls){
+    const el = document.getElementById('toast');
+    el.textContent = msg; el.className = 'show ' + cls;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>{ el.className = cls; }, 900);
+  }
+
+  function markFound(id){
+    found.add(id);
+    const c = dotEls[id], t = labelEls[id];
+    c.classList.remove('unfound','revealed-miss');
+    c.classList.add('found');
+    c.setAttribute('r', 11);
+    c.setAttribute('fill', '#b8860b');
+    t.classList.remove('miss');
+    t.classList.add('show');
+    renderLineList(); updateHeader(); renderFoundList();
+  }
+
+  function tryAnswer(raw){
+    if(gameOver) return;
+    const n = normalize(raw);
+    if(!n) return;
+    const id = answerIndex[n];
+    if(!id){ toast('查無此站','bad'); return; }
+    if(found.has(id)){ toast(DATA.stations[id].zh+' 已經找過了','dup'); return; }
+    markFound(id);
+    toast('答對！'+DATA.stations[id].zh, 'ok');
+  }
+
+  const input = document.getElementById('stationInput');
+  document.getElementById('confirmBtn').addEventListener('click', ()=>{
+    tryAnswer(input.value); input.value=''; input.focus();
+  });
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ tryAnswer(input.value); input.value=''; }
+  });
+
+  document.getElementById('revealBtn').addEventListener('click', ()=>{
+    Object.keys(DATA.stations).forEach(id=>{
+      if(!found.has(id)){
+        labelEls[id].classList.add('show');
+      }
+    });
+  });
+
+  document.getElementById('submitBtn').addEventListener('click', ()=>{
+    gameOver = true;
+    Object.keys(DATA.stations).forEach(id=>{
+      if(!found.has(id)){
+        dotEls[id].classList.add('revealed-miss');
+        labelEls[id].classList.add('show','miss');
+      }
+    });
+    input.disabled = true;
+    document.getElementById('confirmBtn').disabled = true;
+    const box = document.getElementById('summaryBox');
+    box.style.display = 'block';
+    let rows = DATA.lines.map(line=>{
+      const total = new Set(line.path).size;
+      const n = lineFoundCount(line);
+      return `${line.code} ${line.name}：${n}/${total}`;
+    }).join('<br>');
+    box.innerHTML = `<b>已交卷！最終成績</b><br>總計：${found.size} / ${totalUnique}（${(found.size/totalUnique*100).toFixed(1)}%）<br><br>${rows}`;
+    toast('已交卷', 'dup');
+  });
+
+  // ---- zoom / pan ----
+  let scale=1, panX=0, panY=0;
+  function applyTransform(){
+    viewport.setAttribute('transform', `translate(${panX},${panY}) scale(${scale})`);
+  }
+  function zoomAt(factor){
+    const newScale = Math.min(6, Math.max(0.5, scale*factor));
+    const cx = DATA.width/2, cy = DATA.height/2;
+    panX = cx - (cx-panX)*(newScale/scale);
+    panY = cy - (cy-panY)*(newScale/scale);
+    scale = newScale;
+    applyTransform();
+  }
+  document.getElementById('zoomIn').addEventListener('click', ()=>zoomAt(1.25));
+  document.getElementById('zoomOut').addEventListener('click', ()=>zoomAt(0.8));
+  document.getElementById('zoomReset').addEventListener('click', ()=>{ scale=1; panX=0; panY=0; applyTransform(); });
+
+  const mapwrap = document.getElementById('mapwrap');
+  let dragging=false, lastX=0, lastY=0;
+  mapwrap.addEventListener('mousedown', e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; mapwrap.classList.add('dragging'); });
+  window.addEventListener('mouseup', ()=>{ dragging=false; mapwrap.classList.remove('dragging'); });
+  window.addEventListener('mousemove', e=>{
+    if(!dragging) return;
+    const rect = svg.getBoundingClientRect();
+    const ux = DATA.width/rect.width, uy = DATA.height/rect.height;
+    panX += (e.clientX-lastX)*ux; panY += (e.clientY-lastY)*uy;
+    lastX=e.clientX; lastY=e.clientY;
+    applyTransform();
+  });
+  mapwrap.addEventListener('wheel', e=>{
+    e.preventDefault();
+    zoomAt(e.deltaY<0?1.1:0.9);
+  }, {passive:false});
+
+  // touch: one-finger pan, two-finger pinch zoom
+  function touchDist(a,b){ return Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY); }
+  let lastPinchDist = null;
+  mapwrap.addEventListener('touchstart', e=>{
+    if(e.touches.length===1){
+      dragging=true; lastX=e.touches[0].clientX; lastY=e.touches[0].clientY;
+    } else if(e.touches.length===2){
+      dragging=false; lastPinchDist = touchDist(e.touches[0], e.touches[1]);
+    }
+  }, {passive:true});
+  mapwrap.addEventListener('touchmove', e=>{
+    if(e.touches.length===1 && dragging){
+      const rect = svg.getBoundingClientRect();
+      const ux = DATA.width/rect.width, uy = DATA.height/rect.height;
+      const t = e.touches[0];
+      panX += (t.clientX-lastX)*ux; panY += (t.clientY-lastY)*uy;
+      lastX = t.clientX; lastY = t.clientY;
+      applyTransform();
+      e.preventDefault();
+    } else if(e.touches.length===2){
+      const d = touchDist(e.touches[0], e.touches[1]);
+      if(lastPinchDist){ zoomAt(d/lastPinchDist); }
+      lastPinchDist = d;
+      e.preventDefault();
+    }
+  }, {passive:false});
+  mapwrap.addEventListener('touchend', ()=>{ dragging=false; lastPinchDist=null; });
+
+  applyLineVisibility();
+  renderLineList(); updateHeader(); renderFoundList();
+  input.focus();
+})();
+</script>
+</body>
+</html>
